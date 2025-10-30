@@ -25,10 +25,11 @@ Coduel is an online judge system enabling programmers to compete head-to-head by
 ## Features
 
 **Multiplayer Competition**
-- Real-time battles with configurable rounds (default: best of 3)
+- Real-time battles with configurable rounds 
 - Private room system with unique join codes
 - Live code spectating for transparency
 - Performance-based winner determination
+- In demo, there is no need to creat account
 
 **Language Support**
 - C (C17 standard)
@@ -36,6 +37,7 @@ Coduel is an online judge system enabling programmers to compete head-to-head by
 - Python 3
 - Java
 - JavaScript (Node.js)
+- Coming soon
 
 **Secure Execution**
 - Docker container isolation per submission
@@ -51,7 +53,7 @@ Coduel is an online judge system enabling programmers to compete head-to-head by
 - Tag-based categorization
 
 **Performance Metrics**
-- Multiple runs per test for accuracy (default: 3 runs)
+- Multiple runs per test for accuracy
 - Median time and memory calculation
 - Detailed execution logs
 - Test case visibility control
@@ -115,7 +117,7 @@ The system uses a microservices architecture with five main components:
 **Quick Start**
 ```bash
 git clone https://github.com/Saudadeeee/Coduel.git
-cd Coduel/Coduel
+cd Coduel
 docker-compose up --build -d
 ```
 
@@ -290,6 +292,7 @@ Result: Player A wins on time
 ```
 Coduel/
 ├── api/                    FastAPI server and validation logic
+├── assets/                 Capture Img
 ├── judge/                  Docker image with compilers and execution scripts
 ├── problems/               Problem repository with metadata and test cases
 ├── web/                    Express server, Socket.IO, and HTML frontend
@@ -298,47 +301,6 @@ Coduel/
 ├── docker-compose.yml      Service orchestration
 └── .env.judge              Worker configuration
 ```
-
-## Troubleshooting
-
-**Services won't start**
-```bash
-docker-compose down -v
-docker-compose up --build --force-recreate
-```
-
-**Port conflicts**
-Edit docker-compose.yml ports section or stop conflicting processes.
-
-**Worker not processing**
-```bash
-docker logs oj_worker -f
-docker exec oj_redis redis-cli LLEN queue:compile
-```
-
-**Code not syncing**
-Check browser DevTools Network tab for WebSocket connection.
-Check web server logs: `docker logs oj_web -f`
-
-**Execution timeout**
-Increase RUN_TIMEOUT in .env.judge and restart worker.
-
-## Testing
-
-**Test API**
-```bash
-curl http://localhost:8000/problems
-```
-
-**Test submission**
-```bash
-curl -X POST http://localhost:8000/problem-submit \
-  -H "Content-Type: application/json" \
-  -d '{"problem_id":"001-sum-two","language":"cpp","code":"..."}'
-```
-
-**Test multiplayer**
-Open http://localhost:5173 in two browser windows (one incognito), create room in first, join in second.
 
 ## Development
 
@@ -378,12 +340,3 @@ MIT License - Copyright (c) 2025 Saudadeeee
 
 Permission is granted to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this software. See LICENSE file for full terms.
 
-## Acknowledgments
-
-Inspired by CodinGame Clash of Code. Built with Docker, FastAPI, Socket.IO, Express.js, Redis, and CodeMirror.
-
-## Support
-
-- GitHub Issues: https://github.com/Saudadeeee/Coduel/issues
-- Documentation: Project README and code comments
-- Logs: `docker-compose logs -f` for debugging
