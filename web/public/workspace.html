@@ -4,8 +4,8 @@
   <meta charset="utf-8"/>
   <title>WorkSpace</title>
   <link rel="icon" type="image/png" href="favicon.png" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" integrity="sha512-c9fIxgR6+wUWp+dsr5pe0GWJMhF9ElVW9vDCtXQODp166tiEPc4DEqyRuPBU2VLcjNtFFs95Vk4NaJQ0JQj9uw==" crossorigin="anonymous" referrerpolicy="no-referrer"/>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" integrity="sha512-OAWSRzV0LxrNnjghIZJ97caW7u80YqEJgJlJlGkGv5bl/3TxAqSeknmT0nMvadbUzIUwoGDoeiTiXxE5u/vBRA==" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
   <script src="marked.min.js"></script>
   <style>
     :root {
@@ -107,29 +107,33 @@
     .CodeMirror {
       font-family:"JetBrains Mono","Fira Code","SFMono-Regular",monospace;
       font-size:14px;
-      background:#282a36;
-      color:#f8f8f2;
       border-radius:8px;
-    }
-
-    .CodeMirror-gutters {
-      background:#282a36;
-      border-right:1px solid #44475a;
     }
 
     .CodeMirror-focused {
       outline:none;
     }
 
-    .cm-s-dracula.CodeMirror {
-      background:#282a36;
-      color:#f8f8f2;
+    /* Dracula Theme - Let CDN handle background, only override syntax colors */
+    .cm-s-dracula .CodeMirror-linenumber {
+      color:#6272a4;
     }
-    .cm-s-dracula .CodeMirror-gutters {
-      background:#282a36;
-      border-right:1px solid #44475a;
+    .cm-s-dracula .CodeMirror-cursor {
+      border-left:2px solid #f8f8f0;
     }
-    .cm-s-dracula span.cm-keyword,
+    .cm-s-dracula .CodeMirror-selected {
+      background:rgba(68, 71, 90, 0.5);
+    }
+    .cm-s-dracula .CodeMirror-line::selection,
+    .cm-s-dracula .CodeMirror-line > span::selection,
+    .cm-s-dracula .CodeMirror-line > span > span::selection {
+      background:rgba(68, 71, 90, 0.5);
+    }
+    
+    /* Enhanced Dracula Syntax Colors - Force apply */
+    .cm-s-dracula span.cm-keyword {
+      color:#ff79c6 !important;
+    }
     .cm-s-dracula span.cm-operator {
       color:#ff79c6 !important;
     }
@@ -137,33 +141,54 @@
     .cm-s-dracula span.cm-string-2 {
       color:#f1fa8c !important;
     }
-    .cm-s-dracula span.cm-number,
+    .cm-s-dracula span.cm-number {
+      color:#bd93f9 !important;
+    }
     .cm-s-dracula span.cm-atom {
       color:#bd93f9 !important;
     }
     .cm-s-dracula span.cm-comment {
       color:#6272a4 !important;
-      font-style:italic;
+      font-style:italic !important;
     }
-    .cm-s-dracula span.cm-def,
-    .cm-s-dracula span.cm-builtin,
-    .cm-s-dracula span.cm-variable-3 {
+    .cm-s-dracula span.cm-def {
       color:#50fa7b !important;
     }
-    .cm-s-dracula span.cm-variable,
-    .cm-s-dracula span.cm-variable-2,
-    .cm-s-dracula span.cm-tag {
+    .cm-s-dracula span.cm-builtin {
       color:#8be9fd !important;
+    }
+    .cm-s-dracula span.cm-variable {
+      color:#f8f8f2 !important;
+    }
+    .cm-s-dracula span.cm-variable-2 {
+      color:#f8f8f2 !important;
+    }
+    .cm-s-dracula span.cm-variable-3 {
+      color:#8be9fd !important;
+    }
+    .cm-s-dracula span.cm-tag {
+      color:#ff79c6 !important;
     }
     .cm-s-dracula span.cm-type {
       color:#8be9fd !important;
+      font-style:italic !important;
     }
-    .cm-s-dracula span.cm-meta,
+    .cm-s-dracula span.cm-meta {
+      color:#ff79c6 !important;
+    }
     .cm-s-dracula span.cm-qualifier {
-      color:#ffb86c !important;
+      color:#ff79c6 !important;
     }
     .cm-s-dracula span.cm-property {
-      color:#66d9ef !important;
+      color:#50fa7b !important;
+    }
+    .cm-s-dracula span.cm-attribute {
+      color:#50fa7b !important;
+    }
+    .cm-s-dracula .CodeMirror-matchingbracket {
+      color:#f8f8f2 !important;
+      background-color:rgba(68, 71, 90, 0.5) !important;
+      outline:1px solid #6272a4 !important;
     }
 
     .wrap {
@@ -1228,12 +1253,12 @@ int main(){
   <button id="btn" class="run-btn">Compile &amp; Run</button>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" integrity="sha512-+nQO2ofnUeJgHYa/u/l0iW+EYhIn0R+ifR+BedJEryD91XfMPogv+0h/rbpIKlLeuUp2U7fXKAGeevSjT0H2rA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js" integrity="sha512-Ecox18y9Gd8Fr7k3mgf0DnOVhBL+J1T7/CqCjeyboGUpOZlyt+9BJq/sIBsDCQPSWx7QLnyM8WB0+uClJmu9uA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js" integrity="sha512-WBYC4kBlA2zV8LOlCY9mk8kbMZ+j51N77r3WDYt1TnO4xjP0dsc7pQqAS8dXBj4RoXLOdAxW2P8Fs14r9WQ9jw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js" integrity="sha512-SyU9H33+G3xg3AdKNOeWn5xu2L/c9WTvV6t6SjbUSKX63dBC2WJUPZ5TxfsxM5ZcgbiqCLu9Vkm8NyX9SkwkAA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js" integrity="sha512-6yv/wEMzS1MbmS6nzu1Se0kGkcs8EwScegXHPelqXcRIf+B7JhYLIK+QJgF2abRbS2l63ZqN0z8qJcGf7YpgiA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js" integrity="sha512-sM1iyOH1cwz0MB6Nmhqi2uYUiQR6AGSxgSeWVkYKUrBVkyPf5MgsMVSMaOJW9f2FmAel4JcwCBmdsUWaXZpXOg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <!-- Socket.IO Client -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -1331,7 +1356,15 @@ if (window.CodeMirror && codeArea) {
   cmInput.setAttribute("autocapitalize", "off");
   cmInput.setAttribute("autocomplete", "off");
   cmInput.setAttribute("inputmode", "text");
-  setTimeout(() => codeEditor.refresh(), 0);
+  
+  // Debug: Check theme
+  console.log('CodeMirror initialized with theme:', codeEditor.getOption('theme'));
+  console.log('CodeMirror wrapper classes:', codeEditor.getWrapperElement().className);
+  
+  setTimeout(() => {
+    codeEditor.refresh();
+    console.log('CodeMirror refreshed');
+  }, 0);
   applyEditorMode("cpp");
 }
 
