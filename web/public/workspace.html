@@ -739,6 +739,49 @@
       border-color: #4a9eff;
     }
 
+    /* Timer Display */
+    .timer-display {
+      position: fixed;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 24px;
+      background: rgba(17, 21, 28, 0.95);
+      border: 2px solid rgba(125, 78, 87, 0.6);
+      border-radius: 8px;
+      color: white;
+      font-size: 20px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: none;
+      min-width: 120px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .timer-display.active {
+      display: block;
+    }
+    .timer-display.warning {
+      border-color: rgba(255, 165, 0, 0.8);
+      color: #ffaa00;
+      animation: pulse-warning 1s ease-in-out infinite;
+    }
+    .timer-display.danger {
+      border-color: rgba(255, 70, 70, 0.9);
+      color: #ff4646;
+      animation: pulse-danger 0.5s ease-in-out infinite;
+    }
+    @keyframes pulse-warning {
+      0%, 100% { box-shadow: 0 4px 20px rgba(255, 165, 0, 0.3); }
+      50% { box-shadow: 0 4px 30px rgba(255, 165, 0, 0.6); }
+    }
+    @keyframes pulse-danger {
+      0%, 100% { box-shadow: 0 4px 20px rgba(255, 70, 70, 0.4); }
+      50% { box-shadow: 0 4px 35px rgba(255, 70, 70, 0.8); }
+    }
+
     .winner-modal {
       position: fixed;
       top: 0;
@@ -1051,6 +1094,10 @@
   View Opponent Code
 </button>
 
+<div class="timer-display" id="timerDisplay">
+  00:00
+</div>
+
 <div class="winner-modal" id="winnerModal">
   <div class="winner-content">
     <div class="winner-emoji" id="winnerEmoji"></div>
@@ -1331,6 +1378,12 @@ const DEFAULT_LANGUAGE = "cpp";
 const roomCodeParam = urlParams.get("room") || "";
 const isOnlineMode = Boolean(roomCodeParam);
 const initialLanguageParam = urlParams.get("lang") || "";
+
+// Timer variables
+let timerInterval = null;
+let timerSecondsLeft = 0;
+let timerTotalSeconds = 0;
+let isTimerActive = false;
 
 if (isOnlineMode) {
   const cleanUrl = new URL(window.location.href);
@@ -1890,6 +1943,10 @@ btn.onclick = async () => {
         "run_timeout","compile_timeout","problem_not_found"
       ].includes(data.meta.status)) {
         console.log('Final status reached:', data.meta.status);
+        // Stop timer when submission completes
+        if (isOnlineMode && isTimerActive) {
+          stopTimer();
+        }
         break;
       }
       tries++;
@@ -1967,6 +2024,7 @@ btnTest.onclick = async () => {
         "run_timeout","compile_timeout","problem_not_found"
       ].includes(data.meta.status)) {
         console.log('Final test status reached:', data.meta.status);
+        // Don't stop timer for Run Test - only stop for actual submission
         break;
       }
       tries++;
@@ -2222,6 +2280,104 @@ function formatMemory(kb) {
   return `${num} KB`;
 }
 
+// ===== TIMER FUNCTIONS =====
+function parseTimeLimit(timeLimit) {
+  if (!timeLimit || timeLimit === 'none') return 0;
+  const match = timeLimit.match(/^(\d+)m$/);
+  if (match) {
+    return parseInt(match[1]) * 60; // Convert minutes to seconds
+  }
+  return 0;
+}
+
+function formatTimerDisplay(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function updateTimerDisplay() {
+  const timerDisplay = document.getElementById('timerDisplay');
+  if (!timerDisplay) return;
+  
+  timerDisplay.textContent = formatTimerDisplay(timerSecondsLeft);
+  
+  // Update styling based on time remaining
+  timerDisplay.classList.remove('warning', 'danger');
+  if (timerSecondsLeft <= 60) {
+    timerDisplay.classList.add('danger');
+  } else if (timerSecondsLeft <= 180) {
+    timerDisplay.classList.add('warning');
+  }
+}
+
+function startTimer(totalSeconds) {
+  stopTimer();
+  
+  if (!totalSeconds || totalSeconds <= 0) {
+    hideTimer();
+    return;
+  }
+  
+  timerTotalSeconds = totalSeconds;
+  timerSecondsLeft = totalSeconds;
+  isTimerActive = true;
+  
+  const timerDisplay = document.getElementById('timerDisplay');
+  if (timerDisplay) {
+    timerDisplay.classList.add('active');
+  }
+  
+  updateTimerDisplay();
+  
+  timerInterval = setInterval(() => {
+    if (!isTimerActive) {
+      stopTimer();
+      return;
+    }
+    
+    timerSecondsLeft--;
+    updateTimerDisplay();
+    
+    if (timerSecondsLeft <= 0) {
+      stopTimer();
+      autoSubmitCode();
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  isTimerActive = false;
+}
+
+function hideTimer() {
+  stopTimer();
+  const timerDisplay = document.getElementById('timerDisplay');
+  if (timerDisplay) {
+    timerDisplay.classList.remove('active', 'warning', 'danger');
+  }
+}
+
+function resetTimer() {
+  if (timerTotalSeconds > 0) {
+    startTimer(timerTotalSeconds);
+  }
+}
+
+async function autoSubmitCode() {
+  console.log('Timer expired! Auto-submitting code...');
+  statusEl.textContent = "Time's up! Auto-submitting...";
+  
+  // Trigger the submit button click
+  if (btn && !btn.disabled) {
+    btn.click();
+  }
+}
+
 // ===== SOCKET.IO REAL-TIME CODE SPECTATING =====
 const socketClient = SocketClient.getInstance();
 const codeTextarea = document.getElementById('code');
@@ -2326,6 +2482,15 @@ async function initializeSocket() {
           enforceHostLanguage(matchSettings.language);
         }
         
+        // Start timer if timeLimit is set
+        if (matchSettings.timeLimit) {
+          const seconds = parseTimeLimit(matchSettings.timeLimit);
+          if (seconds > 0) {
+            console.log('Starting timer:', seconds, 'seconds');
+            startTimer(seconds);
+          }
+        }
+        
         // Load the problem selected by the server
         if (data.problemId) {
           console.log('Loading problem selected by server:', data.problemId);
@@ -2350,6 +2515,19 @@ async function initializeSocket() {
           enforceHostLanguage(matchSettings.language);
         }
         
+        // Show timer preview if timeLimit is set (even before match starts)
+        if (matchSettings.timeLimit) {
+          const seconds = parseTimeLimit(matchSettings.timeLimit);
+          if (seconds > 0) {
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (timerDisplay) {
+              timerDisplay.classList.add('active');
+              timerDisplay.textContent = formatTimerDisplay(seconds);
+              console.log('Showing timer preview:', seconds, 'seconds');
+            }
+          }
+        }
+        
         // If room has a problem already selected (match already started), load it
         if (matchSettings.problemId) {
           console.log('Room has problem already selected:', matchSettings.problemId);
@@ -2358,6 +2536,15 @@ async function initializeSocket() {
           pidInput.disabled = true;
           pidInput.title = "Problem locked for this match";
           loadStatement(currentProblemId);
+          
+          // Start timer if match already started and has timeLimit
+          if (matchSettings.timeLimit) {
+            const seconds = parseTimeLimit(matchSettings.timeLimit);
+            if (seconds > 0) {
+              console.log('Match already started, starting timer:', seconds, 'seconds');
+              startTimer(seconds);
+            }
+          }
         } else {
           console.log('Room has no problem yet - waiting for match to start');
         }
@@ -2567,6 +2754,15 @@ continueBtn.addEventListener('click', () => {
   statusEl.textContent = 'idle';
   clog.textContent = '';
   renderRunResult(null);
+  
+  // Reset timer for next round if in online mode with time limit
+  if (isOnlineMode && matchSettings && matchSettings.timeLimit) {
+    const seconds = parseTimeLimit(matchSettings.timeLimit);
+    if (seconds > 0) {
+      console.log('Resetting timer for next round');
+      startTimer(seconds);
+    }
+  }
 });
 
 backToRoomBtn.addEventListener('click', () => {
