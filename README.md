@@ -1,868 +1,373 @@
-# Coduel 🏆
+# Coduel
 
-> **A competitive programming platform inspired by Clash of Code, but with enhanced features for real-time code battles**
+A competitive programming platform for real-time multiplayer coding battles with Docker-based secure code execution.
 
-Coduel is a multiplayer online judge system that allows programmers to compete head-to-head by solving algorithmic challenges. Built with modern web technologies and Docker-based isolation, it provides a secure, scalable, and engaging platform for coding competitions.
+## Overview
 
-##  Features
+Coduel is an online judge system enabling programmers to compete head-to-head by solving algorithmic problems. The platform determines winners based on accuracy, execution time, and memory usage with a 10% tolerance threshold for fair comparison.
 
-###  Competitive Programming
-- **Real-time Multiplayer Battles**: Compete against opponents in private rooms
-- **Multiple Rounds**: Configurable best-of-N format (default: 3 rounds)
-- **Performance-Based Judging**: Winner determined by accuracy → execution time → memory usage
-- **Anti-Cheat System**: Real-time code spectating prevents cheating
+## Features
 
-###  Language Support
-- **C** (C17 standard)
-- **C++** (C++20 standard)
-- **Python 3**
-- **Java**
-- **JavaScript** (Node.js)
+**Multiplayer Competition**
+- Real-time battles with configurable rounds (default: best of 3)
+- Private room system with unique join codes
+- Live code spectating for transparency
+- Performance-based winner determination
 
-###  Secure Execution
-- **Docker Isolation**: Each submission runs in isolated containers
-- **Resource Limits**: CPU and memory constraints prevent abuse
-- **Timeout Protection**: Configurable time limits per test case
-- **Multi-Run Testing**: Each test runs multiple times for accurate performance metrics
+**Language Support**
+- C (C17 standard)
+- C++ (C++20 standard)
+- Python 3
+- Java
+- JavaScript (Node.js)
 
-###  Real-time Features
-- **Live Code Spectating**: Watch opponent's code as they type
-- **Socket.IO Integration**: Instant updates for all room participants
-- **Ready Check System**: Both players must be ready before match starts
-- **Match Results**: Detailed performance comparison after each round
+**Secure Execution**
+- Docker container isolation per submission
+- Configurable CPU and memory limits
+- Network disabled in judge containers
+- Read-only filesystem with temporary workspace
 
-###  Problem Management
-- **CRUD Operations**: Create, read, update, and delete problems
-- **Markdown Support**: Rich problem statements with formatting
-- **Test Case Visibility**: Public samples + hidden test cases
-- **Difficulty Levels**: Easy, Medium, Hard, Fast
-- **Tagging System**: Organize problems by topics
+**Problem Management**
+- Web-based CRUD operations
+- Markdown-formatted problem statements
+- Public samples and hidden test cases
+- Difficulty levels: fast, easy, medium, hard
+- Tag-based categorization
 
-##  Architecture
+**Performance Metrics**
+- Multiple runs per test for accuracy (default: 3 runs)
+- Median time and memory calculation
+- Detailed execution logs
+- Test case visibility control
 
-### System Overview
-```
-┌──────────────────────────────────────────────────────────────┐
-│                        User Browser                          │
-│  (HTML/CSS/JS + Socket.IO Client + Monaco Editor)          │
-└────────────┬─────────────────────────────────┬──────────────┘
-             │                                 │
-             │ HTTP/REST                       │ WebSocket
-             ▼                                 ▼
-┌─────────────────────┐           ┌──────────────────────────┐
-│    Web Server       │           │   Socket.IO Server      │
-│   (Express.js)      │◄─────────►│   (Real-time Sync)     │
-│   Port: 5173        │           │   - Room Management     │
-└──────────┬──────────┘           │   - Code Broadcasting   │
-           │                      │   - Match Coordination  │
-           │                      └──────────┬───────────────┘
-           │                                 │
-           │ HTTP                            │
-           ▼                                 │
-┌─────────────────────┐                     │
-│    API Server       │                     │
-│    (FastAPI)        │                     │
-│    Port: 8000       │                     │
-│  - Submit Code      │                     │
-│  - Problem CRUD     │                     │
-│  - Judge Queue      │                     │
-└──────────┬──────────┘                     │
-           │                                 │
-           │                                 │
-           └────────────┬────────────────────┘
-                        │
-                        ▼
-              ┌──────────────────┐
-              │      Redis       │
-              │    Port: 6379    │
-              │  - Message Queue │
-              │  - Room State    │
-              │  - Results Cache │
-              └─────────┬────────┘
-                        │
-                        │ Job Queue
-                        ▼
-              ┌──────────────────┐
-              │      Worker      │
-              │  (Python Daemon) │
-              │  - Compile Code  │
-              │  - Run Tests     │
-              └─────────┬────────┘
-                        │
-                        │ Docker API
-                        ▼
-              ┌──────────────────┐
-              │   Judge Engine   │
-              │ (Docker-in-Docker)│
-              │  - Isolated Exec │
-              │  - Resource Limit│
-              │  - Metrics       │
-              └──────────────────┘
-```
+## Architecture
 
-### Component Details
+The system uses a microservices architecture with five main components:
 
-####  Web Server (`web/`)
-- **Technology**: Node.js + Express + Socket.IO
-- **Port**: 5173
-- **Responsibilities**:
-  - Serve static HTML/CSS/JS files
-  - WebSocket connections for real-time features
-  - Room state management
-  - Code synchronization between players
-  - Match result broadcasting
+**Web Server** (Express + Socket.IO, Port 5173)
+- Static file serving for frontend
+- WebSocket connections for real-time features
+- Room state management
+- Code synchronization between players
+- Match result broadcasting
 
-#### API Server (`api/`)
-- **Technology**: FastAPI (Python)
-- **Port**: 8000
-- **Endpoints**:
-  - `GET /problems` - List all problems
-  - `GET /problem/{id}` - Problem details with test cases
-  - `POST /problem-add` - Create new problem
-  - `POST /problem-edit` - Update/delete problem
-  - `POST /problem/submit` - Submit code for judging
-  - `GET /problem/submission/{id}` - Get submission status
-- **Features**:
-  - Pydantic validation
-  - Redis queue integration
-  - Problem metadata management
+**API Server** (FastAPI, Port 8000)
+- RESTful endpoints for problem operations
+- Code submission validation and queueing
+- Problem metadata management
+- Result retrieval
 
-####  Worker (`worker/`)
-- **Technology**: Python + Docker SDK
-- **Responsibilities**:
-  1. **Compilation**: Compile source code with appropriate compiler
-  2. **Execution**: Run compiled binary against test cases
-  3. **Metrics Collection**: Measure time, memory, accuracy
-  4. **Multi-Run Testing**: Execute each test `RUNS_PER_TEST` times
-  5. **Result Storage**: Save results to Redis
-- **Configuration**:
-  - `CPU_LIMIT`: Default = half of system CPU cores
-  - `MEM_LIMIT`: Default = half of system RAM
-  - `RUNS_PER_TEST`: Default = 3 (for median calculation)
-  - `PERFORMANCE_TOLERANCE`: Default = 0.10 (10%)
+**Worker Service** (Python + Docker SDK)
+- Monitors Redis queues for jobs
+- Compiles code in isolated containers
+- Executes tests with resource monitoring
+- Calculates performance metrics
+- Stores results in Redis
 
-####  Judge Engine (`judge/`)
-- **Base Image**: Ubuntu-based with multiple compilers
-- **Installed Tools**:
-  - GCC (C/C++)
-  - Python 3
-  - OpenJDK (Java)
-  - Node.js (JavaScript)
-  - GNU Time (resource monitoring)
-- **Security**: Network disabled, filesystem read-only
+**Judge Engine** (Docker Container)
+- Ubuntu-based with compilers: GCC, G++, Python, OpenJDK, Node.js
+- Executes compile_run.sh for build and test
+- Collects metrics via run_with_metrics.py
+- Network isolation and read-only filesystem
 
-####  Redis
-- **Version**: 7 (Alpine)
-- **Usage**:
-  - Job queue (`queue:compile`)
-  - Submission metadata (`sub:{id}`)
-  - Source code storage (`code:{id}`)
-  - Execution results (`run_result:{id}`)
-  - Compilation logs (`compile_log:{id}`)
-  - Room state (in-memory)
+**Redis** (Port 6379)
+- Job queues: queue:compile, queue:run
+- Submission metadata: sub:{id}
+- Source code: code:{id}
+- Results: run_result:{id}
+- Compilation logs: compile_log:{id}
 
-##  Getting Started
+## Workflow
 
-### Prerequisites
-- **Docker** (20.10+)
-- **Docker Compose** (2.0+)
-- **Git**
-- **Port Availability**: 5173 (Web), 8000 (API), 6379 (Redis)
+1. User submits code via web interface
+2. API validates and pushes to Redis compile queue with metadata
+3. Worker picks job and creates temporary workspace
+4. Worker spawns judge container to compile code
+5. On success, job moves to run queue
+6. Worker spawns judge container with test case volume mounts
+7. Judge executes code multiple times per test case
+8. Metrics collected and stored in Redis
+9. Results returned via API endpoint or WebSocket
 
-### Installation
+## Installation
 
-1. **Clone the repository**
+**Prerequisites**
+- Docker 20.10 or higher
+- Docker Compose 2.0 or higher
+- Available ports: 5173, 8000, 6379
+
+**Quick Start**
 ```bash
-git clone https://github.com/Saudadeeee/Cowar.git
-cd Cowar/Coduel
+git clone https://github.com/Saudadeeee/Coduel.git
+cd Coduel/Coduel
+docker-compose up --build -d
 ```
 
-2. **Configure environment** (optional)
+**Verify Installation**
 ```bash
-# Create .env.judge for worker configuration
-cat > .env.judge << EOF
+docker ps
+```
+Expected containers: oj_web, oj_api, oj_worker, oj_redis, oj_judge_builder
+
+**Access Application**
+- Web interface: http://localhost:5173
+- API documentation: http://localhost:8000/docs
+
+## Configuration
+
+Create .env.judge file for custom worker settings:
+```bash
 RUNS_PER_TEST=3
 PERFORMANCE_TOLERANCE=0.10
 CPU_LIMIT=2.0
 MEM_LIMIT=1g
-EOF
+COMPILE_TIMEOUT=60
+RUN_TIMEOUT=60
 ```
 
-3. **Build and start all services**
-```bash
-docker-compose up --build -d
-```
+Defaults if not specified:
+- CPU_LIMIT: Half of system cores
+- MEM_LIMIT: Half of system RAM
+- RUNS_PER_TEST: 3
+- PERFORMANCE_TOLERANCE: 0.10 (10%)
 
-4. **Verify services are running**
-```bash
-docker ps
-# Should show: oj_web, oj_api, oj_worker, oj_redis
-```
+## Usage
 
-5. **Access the application**
-- **Web UI**: http://localhost:5173
-- **API Docs**: http://localhost:8000/docs
-
-### First Time Setup
-
-1. **Add a Problem**:
-   - Navigate to http://localhost:5173/problem-add
-   - Fill in problem details:
-     - Title: "Sum Two Numbers"
-     - Difficulty: Easy
-     - Description: "Calculate a + b"
-     - Sample Input: `1 2`
-     - Sample Output: `3`
-     - Add test cases with visibility (public/hidden)
-   - Click "Create Problem"
-
-2. **View Dashboard**:
-   - Go to http://localhost:5173/dashboard
-   - See problem statistics and distribution
-
-3. **Test Solo**:
-   - Click "Training Mode" from main menu
-   - Select a problem
-   - Write code in the Monaco editor
-   - Click "Submit & Run"
-
-4. **Host Multiplayer Match**:
-   - Click "Host Room" from main menu
-   - Configure settings:
-     - Enable/disable code spectator
-     - Select difficulty
-     - Choose default language
-     - Set number of rounds
-   - Share room code with opponent
-
-5. **Join a Match**:
-   - Click "Join Room" from main menu
-   - Enter room code
-   - Wait for host to start match
-
-## 🎮 How to Play
-
-### Solo Training Mode
-1. Select "Training Mode" from main menu
+**Training Mode**
+1. Navigate to main menu and select Training Mode
 2. Choose a problem from the list
-3. Read problem statement carefully
-4. Write solution in preferred language
-5. Test with sample inputs
-6. Submit when ready
-7. View detailed results (verdict, time, memory)
+3. Write solution in code editor
+4. Select programming language
+5. Submit and view results
 
-### Multiplayer Battle Mode
+**Multiplayer Mode**
 
-#### As Host:
-1. **Create Room**:
-   - Click "Host Room"
-   - Configure match settings
-   - Copy generated room code
+Host:
+1. Click Host Room from main menu
+2. Configure settings: rounds, difficulty, spectator mode, language
+3. Share generated room code
+4. Wait for opponent and ready confirmation
+5. Start match
 
-2. **Wait for Opponent**:
-   - Share room code with friend
-   - Wait for them to join
-   - Both players mark "Ready"
+Player:
+1. Click Join Room from main menu
+2. Enter host-provided room code
+3. Mark ready
+4. Solve problems and submit solutions
 
-3. **Start Match**:
-   - Click "Start Match" button
-   - Problem appears for both players
-   - Code editor unlocks
+**Code Spectating**
+When enabled by host, click eye icon in workspace to view opponent code in real-time.
 
-4. **Compete**:
-   - Write solution
-   - Submit when ready
-   - Wait for opponent to submit
-   - View performance comparison
+## API Reference
 
-5. **Multi-Round**:
-   - Winner of round gets 1 point
-   - Next problem loads automatically
-   - First to win majority wins match
+**Problem Endpoints**
 
-#### As Player:
-1. **Join Room**:
-   - Click "Join Room"
-   - Enter room code from host
-   - Click "Ready" when prepared
-
-2. **Follow host's lead**:
-   - Wait for match to start
-   - Solve problems as they appear
-   - Submit before opponent to gain advantage
-
-### Code Spectating (Anti-Cheat)
-If enabled by host:
-- Click eye icon (👁️) in workspace
-- Watch opponent's code in real-time
-- See when they submit
-- Promotes fair play and transparency
-
-##  API Documentation
-
-### Problem Management
-
-#### List Problems
-```http
+List problems:
+```
 GET /problems
-```
-**Response**:
-```json
-{
-  "problems": [
-    {
-      "problem_id": "001-sum-two",
-      "title": "Sum Two Numbers",
-      "difficulty": "easy",
-      "number": 1,
-      "time_limit_ms": 2000,
-      "memory_limit_kb": 262144,
-      "tags": ["math", "implementation"],
-      "tests": 2
-    }
-  ]
-}
+Response: {"problems": [...]}
 ```
 
-#### Get Problem Details
-```http
+Get problem:
+```
 GET /problem/{problem_id}
+Response: {meta, statement, tests, samples}
 ```
-**Response**: Includes statement, samples, tests, metadata
 
-#### Create Problem
-```http
+Create problem:
+```
 POST /problem-add
-Content-Type: application/json
-
-{
-  "title": "Sum Two Numbers",
-  "difficulty": "easy",
-  "description": "Calculate a + b",
-  "sample_input": "1 2",
-  "sample_output": "3",
-  "tests": [
-    {
-      "input": "1 2",
-      "output": "3",
-      "visibility": "public"
-    },
-    {
-      "input": "100 200",
-      "output": "300",
-      "visibility": "hidden"
-    }
-  ],
-  "time_limit_ms": 2000,
-  "memory_limit_kb": 262144,
-  "tags": ["math"]
+Body: {
+  "title": string,
+  "difficulty": "easy"|"medium"|"hard"|"fast",
+  "description": string,
+  "sample_input": string,
+  "sample_output": string,
+  "tests": [{"input": string, "output": string, "visibility": "public"|"hidden"}],
+  "time_limit_ms": number,
+  "memory_limit_kb": number,
+  "tags": string[]
 }
 ```
 
-#### Update Problem
-```http
+Update problem:
+```
 POST /problem-edit
-Content-Type: application/json
-
-{
-  "problem_id": "001-sum-two",
-  "title": "Updated Title",
-  "difficulty": "medium",
-  // ... other fields
-}
+Body: {"problem_id": string, ...fields}
 ```
 
-#### Delete Problem
-```http
+Delete problem:
+```
 POST /problem-edit
-Content-Type: application/json
-
-{
-  "problem_id": "001-sum-two",
-  "delete": true
-}
+Body: {"problem_id": string, "delete": true}
 ```
 
-### Submission
+**Submission Endpoints**
 
-#### Submit Code
-```http
+Submit code:
+```
 POST /problem/submit
-Content-Type: application/json
-
-{
-  "problem_id": "001-sum-two",
-  "language": "cpp",
-  "code": "#include <iostream>\nusing namespace std;\nint main() { int a,b; cin>>a>>b; cout<<a+b; }",
-  "std": "c++20"
+Body: {
+  "problem_id": string,
+  "language": "c"|"cpp"|"py"|"java"|"js",
+  "code": string,
+  "std": string (optional)
 }
-```
-**Response**:
-```json
-{
-  "submission_id": "uuid-here"
-}
+Response: {"submission_id": string}
 ```
 
-#### Check Submission Status
-```http
+Check status:
+```
 GET /problem/submission/{submission_id}
-```
-**Response**:
-```json
-{
-  "meta": {
-    "status": "completed",
-    "problem_id": "001-sum-two",
-    "language": "cpp",
-    "created_at": "1730000000"
-  },
-  "compile_log": "Success",
+Response: {
+  "meta": {"status": string, "problem_id": string, "language": string},
+  "compile_log": string,
   "run_result": {
-    "verdict": "AC",
-    "tests_passed": 2,
-    "tests_total": 2,
+    "verdict": string,
+    "tests_passed": number,
+    "tests_total": number,
     "performance": {
-      "accuracy": 100.0,
-      "median_elapsed_seconds": 0.005,
-      "median_memory_kb": 2048
+      "accuracy": number,
+      "median_elapsed_seconds": number,
+      "median_memory_kb": number
     },
     "test_details": [...]
   }
 }
 ```
 
-##  Configuration
-
-### Environment Variables
-
-#### Worker Configuration (`.env.judge`)
-```bash
-# Number of times to run each test (for median calculation)
-RUNS_PER_TEST=3
-
-# Performance tolerance for time comparison (10%)
-PERFORMANCE_TOLERANCE=0.10
-
-# CPU limit per container (cores)
-CPU_LIMIT=2.0
-
-# Memory limit per container
-MEM_LIMIT=1g
-
-# Timeout for compilation (seconds)
-COMPILE_TIMEOUT=60
-
-# Timeout for execution (seconds)
-RUN_TIMEOUT=60
+Compare submissions:
+```
+POST /api/compare-submissions
+Body: {"submissionA": string, "submissionB": string}
+Response: {
+  "submissionA": {...},
+  "submissionB": {...},
+  "comparison": {
+    "winner": "A"|"B"|"TIE",
+    "reason": "accuracy"|"time"|"memory"|"all_metrics_equal_within_tolerance",
+    "details": {...}
+  }
+}
 ```
 
-#### Docker Compose Override
-```yaml
-# docker-compose.override.yml
-version: "3.9"
-services:
-  web:
-    ports:
-      - "3000:5173"  # Change web port
-  
-  api:
-    environment:
-      - DEFAULT_TIME_LIMIT_MS=5000  # 5 second default
-      - DEFAULT_MEMORY_LIMIT_KB=524288  # 512MB default
-```
+## Winner Determination Algorithm
 
-### Performance Comparison Algorithm
+The system uses a 3-tier comparison with tolerance:
 
-The system uses a 3-tier comparison:
+1. Accuracy: Higher tests_passed/tests_total wins immediately
+2. Execution Time: Compare median times with 10% tolerance
+3. Memory Usage: Compare median memory with 10% tolerance
 
-1. **Accuracy** (Priority 1):
-   - Compare `tests_passed / tests_total`
-   - Higher accuracy wins immediately
+If all metrics within tolerance, result is TIE.
 
-2. **Execution Time** (Priority 2):
-   - Uses median time from multiple runs
-   - Tolerance: ±10% (configurable)
-   - If within tolerance → tie, move to memory
-
-3. **Memory Usage** (Priority 3):
-   - Uses median memory from multiple runs
-   - Tolerance: ±10% (configurable)
-   - If within tolerance → tie
-
-**Example**:
+Example:
 ```
 Player A: 100% accuracy, 0.005s, 2048KB
 Player B: 100% accuracy, 0.006s, 2048KB
-
-Time difference: 20% → Player A wins
+Time difference: 20% (exceeds 10% tolerance)
+Result: Player A wins on time
 ```
 
-##  Project Structure
+## Project Structure
 
 ```
 Coduel/
-├── api/                          # FastAPI backend
-│   ├── app.py                   # Main API server (712 lines)
-│   ├── Dockerfile               # API container config
-│   └── requirements.txt         # Python dependencies
-├── judge/                        # Code execution engine
-│   ├── compile_run.sh           # Compilation/execution script
-│   ├── Dockerfile               # Judge container with compilers
-│   └── run_with_metrics.py     # Metrics collection
-├── problems/                     # Problem repository
-│   ├── 001-sum-two/
-│   │   ├── meta.json            # Problem metadata
-│   │   ├── statement.md         # Problem description
-│   │   ├── sample_input.txt     # Public sample
-│   │   ├── sample_output.txt
-│   │   ├── input1.txt           # Test case 1
-│   │   ├── output1.txt
-│   │   ├── input2.txt           # Test case 2
-│   │   └── output2.txt
-│   └── 002-test/
-│       └── ...
-├── web/                          # Frontend application
-│   ├── server.js                # Express + Socket.IO (468 lines)
-│   ├── socket-client.js         # Socket.IO client wrapper
-│   ├── Dockerfile               # Web container config
-│   ├── package.json             # Node.js dependencies
-│   └── public/
-│       ├── mainmenu.html        # Main navigation
-│       ├── dashboard.html       # Statistics dashboard
-│       ├── workspace.html       # Code editor (2061 lines)
-│       ├── roomhost.html        # Room creation
-│       ├── problem-add.html     # Problem creation form
-│       └── problem-edit.html    # Problem edit form
-├── worker/                       # Background job processor
-│   ├── worker.py                # Job handler (489 lines)
-│   ├── Dockerfile               # Worker container config
-│   └── requirements.txt         # Python dependencies
-├── worker_tmp/                   # Temporary execution directory
-├── docker-compose.yml            # Service orchestration
-└── .env.judge                    # Worker configuration
+├── api/                    FastAPI server and validation logic
+├── judge/                  Docker image with compilers and execution scripts
+├── problems/               Problem repository with metadata and test cases
+├── web/                    Express server, Socket.IO, and HTML frontend
+├── worker/                 Background job processor for compilation and testing
+├── worker_tmp/             Temporary directory for code execution
+├── docker-compose.yml      Service orchestration
+└── .env.judge              Worker configuration
 ```
 
-##  Testing
+## Troubleshooting
 
-### Manual Testing
-
-#### Test Services
+**Services won't start**
 ```bash
-# Start all services
-docker-compose up -d
-
-# Check container status
-docker ps
-
-# Test API health
-curl http://localhost:8000/problems
-
-# Test web server
-curl http://localhost:5173
-
-# Check Redis
-docker exec oj_redis redis-cli ping
-```
-
-#### Test Problem Submission
-```bash
-# Create test problem
-curl -X POST http://localhost:8000/problem-add \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Test",
-    "difficulty": "easy",
-    "sample_input": "1 2",
-    "sample_output": "3",
-    "tests": [{"input":"1 2","output":"3","visibility":"public"}]
-  }'
-
-# Submit solution
-curl -X POST http://localhost:8000/problem/submit \
-  -H "Content-Type: application/json" \
-  -d '{
-    "problem_id": "001-test",
-    "language": "cpp",
-    "code": "#include <iostream>\nusing namespace std;\nint main() { int a,b; cin>>a>>b; cout<<a+b; }"
-  }'
-
-# Check result (use submission_id from above)
-curl http://localhost:8000/problem/submission/{submission_id}
-```
-
-#### Test Multiplayer
-1. **Terminal 1**: Start services
-```bash
-docker-compose up
-```
-
-2. **Browser 1**: Host room
-   - Open http://localhost:5173
-   - Click "Host Room"
-   - Enable spectator mode
-   - Copy room code
-
-3. **Browser 2**: Join room
-   - Open http://localhost:5173 (incognito)
-   - Click "Join Room"
-   - Paste room code
-   - Both click "Ready"
-
-4. **Start Match**:
-   - Host clicks "Start Match"
-   - Both solve problem
-   - Submit code
-   - View winner modal
-
-### Test Code Spectating
-1. Enable spectator in room settings
-2. Join room with 2 browsers
-3. Type code in Browser 1
-4. Click eye icon in Browser 2
-5. Verify code appears in real-time
-
-##  Troubleshooting
-
-### Common Issues
-
-#### Services Won't Start
-```bash
-# Clean up containers
 docker-compose down -v
-
-# Rebuild from scratch
 docker-compose up --build --force-recreate
 ```
 
-#### Port Already in Use
+**Port conflicts**
+Edit docker-compose.yml ports section or stop conflicting processes.
+
+**Worker not processing**
 ```bash
-# Find process using port 5173
-lsof -i :5173
-kill -9 <PID>
-
-# Or change port in docker-compose.yml
-# ports: ["3000:5173"]
-```
-
-#### Redis Connection Failed
-```bash
-# Check Redis logs
-docker logs oj_redis
-
-# Restart Redis
-docker-compose restart redis
-
-# Test connection
-docker exec oj_redis redis-cli ping
-```
-
-#### Worker Not Processing Jobs
-```bash
-# Check worker logs
 docker logs oj_worker -f
-
-# Verify Docker socket
-docker exec oj_worker ls -la /var/run/docker.sock
-
-# Check queue
 docker exec oj_redis redis-cli LLEN queue:compile
 ```
 
-#### Code Not Syncing in Multiplayer
+**Code not syncing**
+Check browser DevTools Network tab for WebSocket connection.
+Check web server logs: `docker logs oj_web -f`
+
+**Execution timeout**
+Increase RUN_TIMEOUT in .env.judge and restart worker.
+
+## Testing
+
+**Test API**
 ```bash
-# Check Socket.IO connection
-# Browser DevTools → Network → WS → Should see connection
-
-# Check web server logs
-docker logs oj_web -f
-
-# Verify Redis pub/sub
-docker exec oj_redis redis-cli MONITOR
+curl http://localhost:8000/problems
 ```
 
-#### Judge Execution Timeout
+**Test submission**
 ```bash
-# Increase timeout in .env.judge
-RUN_TIMEOUT=120
-
-# Restart worker
-docker-compose restart worker
+curl -X POST http://localhost:8000/problem-submit \
+  -H "Content-Type: application/json" \
+  -d '{"problem_id":"001-sum-two","language":"cpp","code":"..."}'
 ```
 
-#### Wrong Winner Declared
-```bash
-# Check performance tolerance
-# In .env.judge:
-PERFORMANCE_TOLERANCE=0.10  # 10%
+**Test multiplayer**
+Open http://localhost:5173 in two browser windows (one incognito), create room in first, join in second.
 
-# View detailed comparison logs
-docker logs oj_web | grep "comparison"
-```
+## Development
 
-### Debug Mode
+**Code organization**
+- api/app.py: FastAPI routes and Pydantic models (700 lines)
+- worker/worker.py: Job processing and Docker execution (526 lines)
+- web/server.js: Express routes and Socket.IO handlers (758 lines)
+- web/public/workspace.html: Frontend code editor (2477 lines)
+- judge/compile_run.sh: Compilation and test execution script
 
-Enable verbose logging:
-```bash
-# In docker-compose.yml
-services:
-  worker:
-    environment:
-      - LOG_LEVEL=DEBUG
-```
+**Key technologies**
+- FastAPI: API framework with automatic validation
+- Socket.IO: Real-time bidirectional communication
+- Redis: Message queue and result cache
+- Docker SDK: Container orchestration
+- CodeMirror: Code editor with syntax highlighting
 
-Check all logs:
-```bash
-docker-compose logs -f
-```
+**Adding new language**
+1. Update SOURCE_FILE_MAP in worker/worker.py
+2. Add compilation case in judge/compile_run.sh
+3. Update ALLOWED_LANG in api/app.py
+4. Test compilation and execution
 
-##  Roadmap
+## Contributing
 
-### Phase 1: Core Features 
-- [x] Docker-based judge system
-- [x] Multi-language support (C/C++/Python/Java/JS)
-- [x] Problem CRUD operations
-- [x] Solo training mode
-- [x] Multiplayer room system
-- [x] Real-time code spectating
-- [x] Performance-based judging
-- [x] Multi-round matches
-- [x] Winner modal with statistics
+1. Fork repository
+2. Create feature branch: `git checkout -b feature-name`
+3. Make changes with clear commit messages
+4. Test thoroughly
+5. Open pull request with description
 
-### Phase 2: Enhanced Features 
-- [ ] User authentication & profiles
-- [ ] Persistent leaderboard
-- [ ] Problem difficulty rating
-- [ ] Submission history
-- [ ] Code templates per language
-- [ ] Syntax highlighting in spectator
-- [ ] Match replay system
+Follow ESLint/Prettier for JavaScript, Black for Python.
 
-### Phase 3: Advanced Features 
-- [ ] Tournament bracket system
-- [ ] Team battles (2v2)
-- [ ] Spectator-only role
-- [ ] Live streaming integration
-- [ ] Code diff viewer
-- [ ] Anti-plagiarism detection
-- [ ] Rating system (ELO)
-- [ ] Achievement badges
+## License
 
-### Phase 4: Scale & Polish 
-- [ ] Kubernetes deployment
-- [ ] CDN for static assets
-- [ ] Database persistence (PostgreSQL)
-- [ ] Microservices architecture
-- [ ] Mobile app (React Native)
-- [ ] i18n (multiple languages)
-- [ ] Dark/light theme toggle
-- [ ] Accessibility improvements
+MIT License - Copyright (c) 2025 Saudadeeee
 
-##  Contributing
+Permission is granted to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this software. See LICENSE file for full terms.
 
-We welcome contributions! Here's how:
+## Acknowledgments
 
-1. **Fork the repository**
-```bash
-git clone https://github.com/Saudadeeee/Coduel.git
-cd Cowar
-git remote add upstream https://github.com/Saudadeeee/Coduel.git
-```
+Inspired by CodinGame Clash of Code. Built with Docker, FastAPI, Socket.IO, Express.js, Redis, and CodeMirror.
 
-2. **Create a feature branch**
-```bash
-git checkout -b feature/amazing-feature
-```
+## Support
 
-3. **Make your changes**
-   - Follow existing code style
-   - Add comments for complex logic
-   - Test thoroughly
-
-4. **Commit your changes**
-```bash
-git add .
-git commit -m "Add amazing feature"
-```
-
-5. **Push to your fork**
-```bash
-git push origin feature/amazing-feature
-```
-
-6. **Open a Pull Request**
-   - Describe your changes
-   - Link related issues
-   - Add screenshots if UI changes
-
-### Development Guidelines
-
-- **Code Style**: Follow ESLint/Prettier for JS, Black for Python
-- **Commits**: Use conventional commits (feat/fix/docs/style/refactor)
-- **Testing**: Test manually before submitting PR
-- **Documentation**: Update README if adding features
-
-##  License
-
-This project is licensed under the MIT License - see below for details:
-
-```
-MIT License
-
-Copyright (c) 2025 Saudadeeee
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-##  Acknowledgments
-
-- **Inspiration**: [CodinGame's Clash of Code](https://www.codingame.com/multiplayer/clashofcode)
-- **Technologies**:
-  - [Docker](https://www.docker.com/) - Containerization
-  - [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
-  - [Socket.IO](https://socket.io/) - Real-time communication
-  - [Express.js](https://expressjs.com/) - Node.js web framework
-  - [Redis](https://redis.io/) - In-memory data store
-  - [Monaco Editor](https://microsoft.github.io/monaco-editor/) - Code editor
-- **Community**: Thanks to all beta testers and contributors
-
-##  Support
-
-Need help? Here are your options:
-
-1. **Documentation**: Check the `/Coduel` directory for detailed guides
-2. **Issues**: [Open a GitHub issue](https://github.com/Saudadeeee/Coduel/issues)
-3. **Discussions**: [Join GitHub Discussions](https://github.com/Saudadeeee/Coduel/issues)
-4. **Logs**: Run `docker-compose logs -f` for debugging
-
-### Quick Links
-- [Installation Guide](#installation)
-- [API Documentation](#api-documentation)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-
----
-
-<div align="center">
-
-**Built with ❤️ by competitive programmers, for competitive programmers**
-
-[ Star this repo](https://github.com/Saudadeeee/Coduel.git) | [ Report Bug](https://github.com/Saudadeeee/Coduel/issues) | [ Request Feature](https://github.com/Saudadeeee/Coduel.git)
-
-</div>
+- GitHub Issues: https://github.com/Saudadeeee/Coduel/issues
+- Documentation: Project README and code comments
+- Logs: `docker-compose logs -f` for debugging
