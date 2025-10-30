@@ -660,6 +660,21 @@
       transform:translateY(0);
     }
 
+    .test-btn {
+      background: rgba(54,65,86,0.8);
+      border-color: var(--border);
+      box-shadow:
+        0 24px 48px rgba(0,0,0,0.7),
+        0 2px 4px rgba(0,0,0,0.8);
+    }
+    .test-btn:hover {
+      background: rgba(54,65,86,1);
+      border-color: var(--border-soft);
+      box-shadow:
+        0 32px 64px rgba(0,0,0,0.8),
+        0 4px 8px rgba(0,0,0,0.9);
+    }
+
     .floating-runner {
       position:fixed;
       bottom:24px;
@@ -1154,6 +1169,7 @@ int main(){
 </div>
 
 <div class="floating-runner">
+  <button id="btnTest" class="run-btn test-btn">Run Test</button>
   <button id="btn" class="run-btn">Compile &amp; Run</button>
 </div>
 
@@ -1174,6 +1190,7 @@ int main(){
 const api = "/api"; 
 
 const btn = document.getElementById("btn");
+const btnTest = document.getElementById("btnTest");
 const statusEl = document.getElementById("status");
 const clog = document.getElementById("clog");
 const rlog = document.getElementById("rlog");
@@ -1876,6 +1893,83 @@ btn.onclick = async () => {
   } catch (err) {
     statusEl.textContent = "submit failed";
     console.error('Submit error:', err);
+  }
+};
+
+/* nút Run Test - chỉ test với public/sample test cases */
+btnTest.onclick = async () => {
+  statusEl.textContent = "submitting test...";
+  clog.textContent = ""; rlog.textContent = "";
+  renderRunResult(null);
+
+  const langCode = normalizeLanguage(langInput.value);
+  setLanguage(langCode);
+
+  const body = {
+    language: langCode,
+    code: getCodeValue(),
+    problem_id: document.getElementById("pid").value,
+    opt: "O2",
+    test_mode: "sample_only"
+  };
+
+  if (!body.problem_id) {
+    statusEl.textContent = "Please choose a problem before testing.";
+    return;
+  }
+  if (!languageMap.has(body.language)) {
+    statusEl.textContent = "Unsupported language selection.";
+    return;
+  }
+
+  try {
+    const res = await fetch(api + "/problem/submit", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      statusEl.textContent = `test submit failed (${res.status})`;
+      console.error("Test submit failed:", errText);
+      return;
+    }
+    const js = await res.json();
+    const id = js.submission_id;
+    console.log('Test Submission ID:', id);
+    statusEl.textContent = "testing ("+id+")";
+
+    let tries=0;
+    while (tries<120) {
+      await new Promise(r=>setTimeout(r,1000));
+      console.log(`Polling test attempt ${tries+1}/120 for submission ${id}`);
+      const sres = await fetch(api + "/problem/submission/" + id);
+      if (!sres.ok) {
+        console.error(`Polling failed: ${sres.status} ${sres.statusText}`);
+        break;
+      }
+      const data = await sres.json();
+      console.log('Test status update:', data.meta.status, data);
+      statusEl.textContent = data.meta.status;
+      updateStatusFromMeta(data.meta.status);
+      if (data.compile_log) clog.textContent = data.compile_log;
+      renderRunResult(data.run_result);
+      if ([
+        "done","failed","compile_error","error",
+        "run_timeout","compile_timeout","problem_not_found"
+      ].includes(data.meta.status)) {
+        console.log('Final test status reached:', data.meta.status);
+        break;
+      }
+      tries++;
+    }
+    if (tries >= 120) {
+      console.warn('Test polling timeout after 120 attempts');
+      statusEl.textContent = "timeout - check manually";
+    }
+  } catch (err) {
+    statusEl.textContent = "test failed";
+    console.error('Test error:', err);
   }
 };
 

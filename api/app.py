@@ -42,6 +42,7 @@ class SubmitReq(BaseModel):
     code: str
     problem_id: str
     std: str | None = None
+    test_mode: str | None = None
 
     @field_validator("language")
     def val_lang(cls, v):
@@ -49,6 +50,14 @@ class SubmitReq(BaseModel):
         if lang not in ALLOWED_LANG:
             raise ValueError("language must be one of c, cpp, py, java, js")
         return LANGUAGE_ALIASES[lang]
+    
+    @field_validator("test_mode")
+    def val_test_mode(cls, v):
+        if v is None:
+            return None
+        if v not in ["sample_only", "all"]:
+            raise ValueError("test_mode must be 'sample_only' or 'all'")
+        return v
 
 class TestCase(BaseModel):
     input: str
@@ -440,6 +449,7 @@ def submit(s: SubmitReq):
         "problem_id": s.problem_id,
         "language": s.language,
         "std": s.std or {"c": "c17", "cpp": "c++20"}.get(s.language, ""),
+        "test_mode": s.test_mode or "all",
         "created_at": str(int(time.time()))
     })
     r.set(f"code:{sub_id}", s.code, ex=3600)

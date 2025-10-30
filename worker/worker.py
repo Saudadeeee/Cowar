@@ -261,8 +261,42 @@ def run_submission(job):
         return
 
     try:
+        # Get test_mode from submission metadata
+        meta = r.hgetall(f"sub:{sub_id}")
+        test_mode = meta.get("test_mode", "all")
+        
+        # If sample_only mode, create filtered test directory
+        if test_mode == "sample_only":
+            # Read problem metadata to get test visibility info
+            meta_file = os.path.join(tests_dir, "meta.json")
+            if os.path.exists(meta_file):
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    problem_meta = json.load(f)
+                
+                # Create temporary test directory with only public tests
+                filtered_tests_dir = os.path.join(tmpdir, "filtered_tests")
+                os.makedirs(filtered_tests_dir, exist_ok=True)
+                
+                # Copy only public/sample tests
+                test_num = 1
+                for test in problem_meta.get("tests", []):
+                    if test.get("visibility") == "public":
+                        input_file = test.get("input")
+                        output_file = test.get("output")
+                        if input_file and output_file:
+                            src_input = os.path.join(tests_dir, input_file)
+                            src_output = os.path.join(tests_dir, output_file)
+                            if os.path.exists(src_input) and os.path.exists(src_output):
+                                shutil.copy(src_input, os.path.join(filtered_tests_dir, f"input{test_num}.txt"))
+                                shutil.copy(src_output, os.path.join(filtered_tests_dir, f"output{test_num}.txt"))
+                                test_num += 1
+                
+                # Use filtered directory instead
+                tests_dir = filtered_tests_dir
+        
         host_tmpdir = _resolve_host_path(tmpdir, JOB_TMP_ROOT, HOST_JOB_TMP_ROOT)
-        host_tests_dir = _resolve_host_path(tests_dir, PROBLEMS_ROOT, HOST_PROBLEMS_ROOT)
+        host_tests_dir = _resolve_host_path(tests_dir, PROBLEMS_ROOT if not test_mode == "sample_only" else JOB_TMP_ROOT, 
+                                            HOST_PROBLEMS_ROOT if not test_mode == "sample_only" else HOST_JOB_TMP_ROOT)
 
         mounts = [
             (host_tmpdir, "/work", "rw"),
