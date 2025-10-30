@@ -1,13 +1,7 @@
 ![/problems/backspace/file/statement/en/img-0001.png](https://open.kattis.com/problems/backspace/file/statement/en/img-0001.png)
 Bjarki having problems
 
-Right before Forritunarkeppni Framhaldsskólanna started,
-Bjarki decided to update his computer. He didn’t notice
-anything off until he started writing code in his favourite
-editor Bim (Bjarki IMproved). Usually when he uses this editor
-and presses backspace one letter to the left of the
-cursor is erased. But after the update it instead writes the
-letter < .
+Right before Forritunarkeppni Framhaldsskólanna started, Bjarki decided to update his computer. He didn’t notice anything off until he started writing code in his favourite editor Bim (Bjarki IMproved). Usually when he uses this editor and presses backspace one letter to the left of the cursor is erased. But after the update it instead writes the letter < .
 He has tried all of his editors, Bmacs, Neobim, bjedit,
 NoteBjad++, Subjark Text, but they all seem to have this same
 issue. He doesn’t have the time to scour the internet to find a
