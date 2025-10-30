@@ -6,6 +6,22 @@ A competitive programming platform for real-time multiplayer coding battles with
 
 Coduel is an online judge system enabling programmers to compete head-to-head by solving algorithmic problems. The platform determines winners based on accuracy, execution time, and memory usage with a 10% tolerance threshold for fair comparison.
 
+## Screenshots
+
+**Main Menu**
+
+![Main Menu](assets/mainmenu.png)
+
+**Workspace - Code Editor**
+
+![Workspace](assets/workspace.png)
+
+**Problem Management**
+
+![Add Problem](assets/problem-add.png)
+
+![Edit Problem](assets/problem-edit.png)
+
 ## Features
 
 **Multiplayer Competition**
