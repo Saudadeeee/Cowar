@@ -2503,6 +2503,37 @@ async function initializeSocket() {
       alert('Results taking too long. Check submissions manually.');
     });
     
+    socketClient.on('next-round', (data) => {
+      console.log('======= NEXT-ROUND EVENT RECEIVED =======');
+      console.log('Round:', data.round);
+      console.log('Problem ID:', data.problemId);
+      console.log('Settings:', data.settings);
+      console.log('========================================');
+      
+      // Update problem for next round
+      if (data.problemId) {
+        console.log('Loading new problem for round', data.round, ':', data.problemId);
+        currentProblemId = data.problemId;
+        pidInput.value = currentProblemId;
+        loadStatement(currentProblemId);
+        
+        // Reset timer for new round
+        if (data.settings && data.settings.timeLimit) {
+          const seconds = parseTimeLimit(data.settings.timeLimit);
+          if (seconds > 0) {
+            console.log('Starting timer for new round with', seconds, 'seconds');
+            startTimer(seconds);
+          } else {
+            console.log('Timer disabled (timeLimit:', data.settings.timeLimit, ')');
+          }
+        } else {
+          console.log('No timeLimit in settings');
+        }
+      } else {
+        console.log('ERROR: No problemId in next-round data!');
+      }
+    });
+    
     socketClient.on('match-started', (data) => {
       console.log('Match started event received:', data);
       
@@ -2788,14 +2819,8 @@ continueBtn.addEventListener('click', () => {
   clog.textContent = '';
   renderRunResult(null);
   
-  // Reset timer for next round if in online mode with time limit
-  if (isOnlineMode && matchSettings && matchSettings.timeLimit) {
-    const seconds = parseTimeLimit(matchSettings.timeLimit);
-    if (seconds > 0) {
-      console.log('Resetting timer for next round');
-      startTimer(seconds);
-    }
-  }
+  // Timer and problem will be handled by 'next-round' event from server
+  console.log('Continue clicked, waiting for next round...');
 });
 
 backToRoomBtn.addEventListener('click', () => {

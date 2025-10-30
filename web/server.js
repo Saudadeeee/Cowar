@@ -309,6 +309,14 @@ function computeStandings(scores) {
 
 const rooms = new Map();
 
+// Function to fetch all problems from API
+async function getAllProblems() {
+  const apiUrl = process.env.API_URL || "http://api:8000";
+  const response = await fetch(`${apiUrl}/problems`);
+  const data = await response.json();
+  return data.problems || [];
+}
+
 // Helper function to check if all players have submitted
 function checkAllPlayersSubmitted(roomCode) {
   const roomState = rooms.get(roomCode);
@@ -326,7 +334,7 @@ async function compareAndAnnounceWinner(roomCode) {
   const roomState = rooms.get(roomCode);
   if (!roomState || !roomState.submissions) {
     console.log('[DEBUG] No room state or submissions');
-    return;
+    return false;
   }
 
   const matchState = ensureMatchState(roomState);
@@ -336,7 +344,7 @@ async function compareAndAnnounceWinner(roomCode) {
   
   if (submissions.length < 2) {
     console.log('[DEBUG] Need 2 submissions, got', submissions.length);
-    return;
+    return false;
   }
   
   const [sub1, sub2] = submissions;
@@ -360,11 +368,11 @@ async function compareAndAnnounceWinner(roomCode) {
 
     if (!parsed1 && !finalStatus1) {
       console.log('[DEBUG] Waiting for submission result 1 - status:', status1);
-      return;
+      return false;
     }
     if (!parsed2 && !finalStatus2) {
       console.log('[DEBUG] Waiting for submission result 2 - status:', status2);
-      return;
+      return false;
     }
     
     console.log('[DEBUG] Comparing results');
@@ -379,6 +387,7 @@ async function compareAndAnnounceWinner(roomCode) {
     matchState.roundResults.push({
       round: matchState.roundResults.length + 1,
       winner: roundWinner,
+      problemId: roomState.settings.problemId,
       timestamp: Date.now(),
       comparison,
       players: {
@@ -449,8 +458,51 @@ async function compareAndAnnounceWinner(roomCode) {
     
     roomState.submissions = {};
     
+    // If match not completed, select new problem for next round
+    console.log(`Match status: ${matchStatus}, roundsPlayed: ${matchState.roundsPlayed}, totalRounds: ${matchState.totalRounds}`);
+    if (matchStatus !== 'completed') {
+      try {
+        console.log(`Selecting new problem for round ${matchState.roundsPlayed + 1}`);
+        const allProblems = await getAllProblems();
+        console.log(`Total problems available: ${allProblems.length}`);
+        const difficulty = roomState.settings.difficulty;
+        const filteredProblems = allProblems.filter(p => p.difficulty === difficulty);
+        console.log(`Filtered problems (difficulty ${difficulty}): ${filteredProblems.length}`);
+        const problemsToChoose = filteredProblems.length > 0 ? filteredProblems : allProblems;
+        
+        // Avoid repeating the same problem
+        const usedProblems = matchState.roundResults.map(r => r.problemId).filter(Boolean);
+        console.log(`Used problems: ${usedProblems.join(', ')}`);
+        const availableProblems = problemsToChoose.filter(p => !usedProblems.includes(p.problem_id));
+        console.log(`Available problems (not used): ${availableProblems.length}`);
+        const problemPool = availableProblems.length > 0 ? availableProblems : problemsToChoose;
+        
+        const randomIndex = Math.floor(Math.random() * problemPool.length);
+        const selectedProblem = problemPool[randomIndex];
+        
+        console.log(`Selected new problem ${selectedProblem.problem_id} for next round`);
+        roomState.settings.problemId = selectedProblem.problem_id;
+        
+        // Emit new problem to all players
+        console.log(`Emitting next-round event to room ${roomCode}`);
+        io.to(roomCode).emit("next-round", {
+          round: matchState.roundsPlayed + 1,
+          problemId: selectedProblem.problem_id,
+          settings: roomState.settings
+        });
+        console.log(`next-round event emitted successfully`);
+      } catch (error) {
+        console.error('Error selecting new problem for next round:', error);
+      }
+    } else {
+      console.log('Match completed, not selecting new problem');
+    }
+    
+    return true; // Successfully announced winner and next round
+    
   } catch (error) {
     console.error('Error comparing submissions:', error);
+    return false;
   }
 }
 
@@ -676,16 +728,20 @@ io.on("connection", (socket) => {
       
       let attempts = 0;
       const maxAttempts = 15;
+      let resultAnnounced = false;
       
       const pollInterval = setInterval(async () => {
         attempts++;
         
-        await compareAndAnnounceWinner(roomCode);
-        
-        const currentState = rooms.get(roomCode);
-        if (!currentState || Object.keys(currentState.submissions || {}).length === 0) {
-          clearInterval(pollInterval);
-          return;
+        // Try to announce winner
+        if (!resultAnnounced) {
+          const announced = await compareAndAnnounceWinner(roomCode);
+          if (announced) {
+            resultAnnounced = true;
+            console.log('Result announced, clearing poll interval');
+            clearInterval(pollInterval);
+            return;
+          }
         }
         
         if (attempts >= maxAttempts) {
