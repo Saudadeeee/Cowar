@@ -141,6 +141,19 @@ function comparePerformance(perfA = {}, perfB = {}) {
   const accuracyA = coerceNumber(perfA.accuracy) ?? 0;
   const accuracyB = coerceNumber(perfB.accuracy) ?? 0;
 
+  // If both players have 0% accuracy (both failed all tests), it's a tie
+  if (accuracyA === 0 && accuracyB === 0) {
+    return {
+      winner: "TIE",
+      reason: "both_failed",
+      details: {
+        accuracyA: formatPercent(accuracyA),
+        accuracyB: formatPercent(accuracyB),
+        message: "Both players failed all test cases"
+      }
+    };
+  }
+
   if (accuracyA !== accuracyB) {
     return {
       winner: accuracyA > accuracyB ? "A" : "B",

@@ -89,18 +89,18 @@ while true; do
     --stderr "run_${i}.stderr" \
     --metrics "metrics_${i}.json"; then
     
-    # Normalize outputs: remove trailing whitespace from each line and trailing empty lines
-    sed 's/[[:space:]]*$//' "user_out_${i}.txt" | sed -e :a -e '/^\s*$/d;N;ba' > "user_out_${i}_norm.txt"
-    sed 's/[[:space:]]*$//' "$OUT" | sed -e :a -e '/^\s*$/d;N;ba' > "expected_${i}_norm.txt"
+    # Simple normalization: just remove trailing whitespace from each line
+    sed 's/[[:space:]]*$//' "user_out_${i}.txt" > "user_out_${i}_norm.txt"
+    sed 's/[[:space:]]*$//' "$OUT" > "expected_${i}_norm.txt"
     
-    # Compare normalized outputs
-    if diff -q "user_out_${i}_norm.txt" "expected_${i}_norm.txt" > /dev/null 2>&1; then
+    # Compare using diff with -Z (ignore trailing whitespace) and -B (ignore blank lines)
+    if diff -ZB "user_out_${i}_norm.txt" "expected_${i}_norm.txt" > /dev/null 2>&1; then
       echo "TEST $i: OK"
       echo "OK" > "verdict_${i}.txt"
     else
       echo "TEST $i: WA (Wrong Answer)"
       echo "WA" > "verdict_${i}.txt"
-      diff "user_out_${i}_norm.txt" "expected_${i}_norm.txt" > "diff_${i}.txt" 2>&1 || true
+      diff -ZB "user_out_${i}_norm.txt" "expected_${i}_norm.txt" > "diff_${i}.txt" 2>&1 || true
     fi
   else
     EXIT_CODE=$?

@@ -649,6 +649,51 @@
       color:var(--text-dimmer);
     }
 
+    .test-details {
+      margin-top:8px;
+      padding:10px;
+      background:var(--code-bg);
+      border-radius:6px;
+      border:1px solid var(--border-soft);
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+      font-size:12px;
+      line-height:1.5;
+      color:var(--code-fg);
+    }
+
+    .test-details-section {
+      margin-bottom:8px;
+    }
+
+    .test-details-section:last-child {
+      margin-bottom:0;
+    }
+
+    .test-details-label {
+      font-weight:600;
+      color:var(--text-dim);
+      margin-bottom:4px;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+
+    .test-details-content {
+      white-space:pre-wrap;
+      word-break:break-word;
+      color:var(--code-fg);
+      background:rgba(0,0,0,0.3);
+      padding:6px 8px;
+      border-radius:4px;
+      max-height:150px;
+      overflow-y:auto;
+    }
+
+    .test-details-content.empty {
+      color:var(--text-dimmer);
+      font-style:italic;
+    }
+
     .run-metrics {
       display:flex;
       flex-wrap:wrap;
@@ -2088,7 +2133,54 @@ function renderRunResult(run) {
     const verdict = passed ? "pass" : (test.verdict || "fail");
     const elapsed = formatMetric(test.elapsed_seconds, test.elapsed);
     const memory = formatMemory(test.max_rss_kb);
-    return `<li class="${cls}">Test case ${test.test || idx + 1}: ${verdict}<span>${elapsed}${elapsed && memory ? " · " : ""}${memory}</span></li>`;
+    
+    // Build test details section
+    const input = test.input || "";
+    const output = test.output || "";
+    const expected = test.expected_output || "";
+    
+    let detailsHtml = "";
+    if (input || output || expected) {
+      detailsHtml = `
+        <div class="test-details">
+          ${input ? `
+            <div class="test-details-section">
+              <div class="test-details-label">Input:</div>
+              <div class="test-details-content">${escapeHtml(input.trimEnd())}</div>
+            </div>
+          ` : ""}
+          ${output ? `
+            <div class="test-details-section">
+              <div class="test-details-label">Your Output:</div>
+              <div class="test-details-content">${escapeHtml(output.trimEnd())}</div>
+            </div>
+          ` : `
+            <div class="test-details-section">
+              <div class="test-details-label">Your Output:</div>
+              <div class="test-details-content empty">(no output)</div>
+            </div>
+          `}
+          ${expected ? `
+            <div class="test-details-section">
+              <div class="test-details-label">Expected Output:</div>
+              <div class="test-details-content">${escapeHtml(expected.trimEnd())}</div>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }
+    
+    return `
+      <li class="${cls}">
+        <div style="width:100%;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:600;">Test case ${test.test || idx + 1}: ${verdict}</span>
+            <span style="font-size:12px; font-weight:500; color:var(--text-dimmer);">${elapsed}${elapsed && memory ? " · " : ""}${memory}</span>
+          </div>
+          ${detailsHtml}
+        </div>
+      </li>
+    `;
   }).join("");
 
   const perf = run.performance || {};
