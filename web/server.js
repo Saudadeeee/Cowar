@@ -67,32 +67,25 @@ app.post("/api/compare-submissions", jsonParser, async (req, res) => {
   }
 });
 
-// Reverse proxy để chuyển /api/* sang backend API ở port 8000
 const API_TARGET = process.env.API_URL || "http://api:8000";
 app.use('/api', createProxyMiddleware({
   target: API_TARGET,
   changeOrigin: true,
   pathRewrite: {
-    '^/api': '', // Xóa /api prefix khi gửi tới backend
+    '^/api': '', 
   },
-  timeout: 300000, // 5 phút timeout cho long-running submissions
+  timeout: 300000, 
   proxyTimeout: 300000,
   onProxyReq: (proxyReq, req, res) => {
-    console.log(`[Proxy] ${req.method} ${req.path} -> ${API_TARGET}${req.path.replace('/api', '')}`);
-
     if (!req.body || !Object.keys(req.body).length) {
       return;
     }
 
     const bodyData = JSON.stringify(req.body);
-    console.log(`[Proxy] forwarding body (${bodyData.length} bytes)`);
     proxyReq.setHeader('Content-Type', 'application/json');
     proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
     proxyReq.write(bodyData);
     proxyReq.end();
-  },
-  onProxyRes: (proxyRes, req, res) => {
-    console.log(`[Proxy Response] ${req.method} ${req.path} -> ${proxyRes.statusCode}`);
   },
   onError: (err, req, res) => {
     console.error('[Proxy Error]', err.message);
@@ -309,7 +302,6 @@ function computeStandings(scores) {
 
 const rooms = new Map();
 
-// Function to fetch all problems from API
 async function getAllProblems() {
   const apiUrl = process.env.API_URL || "http://api:8000";
   const response = await fetch(`${apiUrl}/problems`);
@@ -317,7 +309,6 @@ async function getAllProblems() {
   return data.problems || [];
 }
 
-// Helper function to check if all players have submitted
 function checkAllPlayersSubmitted(roomCode) {
   const roomState = rooms.get(roomCode);
   if (!roomState) return false;
@@ -329,21 +320,16 @@ function checkAllPlayersSubmitted(roomCode) {
 }
 
 async function compareAndAnnounceWinner(roomCode) {
-  console.log('[DEBUG] compareAndAnnounceWinner:', roomCode);
-  
   const roomState = rooms.get(roomCode);
   if (!roomState || !roomState.submissions) {
-    console.log('[DEBUG] No room state or submissions');
     return false;
   }
 
   const matchState = ensureMatchState(roomState);
   
   const submissions = Object.values(roomState.submissions).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-  console.log('[DEBUG] Found submissions:', submissions.length);
   
   if (submissions.length < 2) {
-    console.log('[DEBUG] Need 2 submissions, got', submissions.length);
     return false;
   }
   
@@ -356,7 +342,6 @@ async function compareAndAnnounceWinner(roomCode) {
   const status2 = meta2?.status ? String(meta2.status).toLowerCase() : null;
   
   try {
-    console.log('[DEBUG] Fetching results:', sub1.submissionId, sub2.submissionId);
     const result1 = await redisClient.get(`run_result:${sub1.submissionId}`);
     const result2 = await redisClient.get(`run_result:${sub2.submissionId}`);
     
@@ -367,15 +352,11 @@ async function compareAndAnnounceWinner(roomCode) {
     const finalStatus2 = status2 ? FINAL_STATUSES.has(status2) : Boolean(parsed2);
 
     if (!parsed1 && !finalStatus1) {
-      console.log('[DEBUG] Waiting for submission result 1 - status:', status1);
       return false;
     }
     if (!parsed2 && !finalStatus2) {
-      console.log('[DEBUG] Waiting for submission result 2 - status:', status2);
       return false;
     }
-    
-    console.log('[DEBUG] Comparing results');
     const player1 = buildPlayerSnapshot(sub1, parsed1, status1);
     const player2 = buildPlayerSnapshot(sub2, parsed2, status2);
     const perf1 = player1.performance;
@@ -451,51 +432,36 @@ async function compareAndAnnounceWinner(roomCode) {
       }
     };
     
-    console.log('Announcing winner:', matchResult.winner);
     io.to(roomCode).emit('match-result', matchResult);
-    
-    console.log('Match result emitted');
     
     roomState.submissions = {};
     
     // If match not completed, select new problem for next round
-    console.log(`Match status: ${matchStatus}, roundsPlayed: ${matchState.roundsPlayed}, totalRounds: ${matchState.totalRounds}`);
     if (matchStatus !== 'completed') {
       try {
-        console.log(`Selecting new problem for round ${matchState.roundsPlayed + 1}`);
         const allProblems = await getAllProblems();
-        console.log(`Total problems available: ${allProblems.length}`);
         const difficulty = roomState.settings.difficulty;
         const filteredProblems = allProblems.filter(p => p.difficulty === difficulty);
-        console.log(`Filtered problems (difficulty ${difficulty}): ${filteredProblems.length}`);
         const problemsToChoose = filteredProblems.length > 0 ? filteredProblems : allProblems;
         
         // Avoid repeating the same problem
         const usedProblems = matchState.roundResults.map(r => r.problemId).filter(Boolean);
-        console.log(`Used problems: ${usedProblems.join(', ')}`);
         const availableProblems = problemsToChoose.filter(p => !usedProblems.includes(p.problem_id));
-        console.log(`Available problems (not used): ${availableProblems.length}`);
         const problemPool = availableProblems.length > 0 ? availableProblems : problemsToChoose;
         
         const randomIndex = Math.floor(Math.random() * problemPool.length);
         const selectedProblem = problemPool[randomIndex];
         
-        console.log(`Selected new problem ${selectedProblem.problem_id} for next round`);
         roomState.settings.problemId = selectedProblem.problem_id;
         
-        // Emit new problem to all players
-        console.log(`Emitting next-round event to room ${roomCode}`);
         io.to(roomCode).emit("next-round", {
           round: matchState.roundsPlayed + 1,
           problemId: selectedProblem.problem_id,
           settings: roomState.settings
         });
-        console.log(`next-round event emitted successfully`);
       } catch (error) {
         console.error('Error selecting new problem for next round:', error);
       }
-    } else {
-      console.log('Match completed, not selecting new problem');
     }
     
     return true; // Successfully announced winner and next round
@@ -507,8 +473,6 @@ async function compareAndAnnounceWinner(roomCode) {
 }
 
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
   socket.on("join-room", async ({ roomCode, username, role }) => {
     try {
       socket.join(roomCode);
@@ -582,8 +546,6 @@ io.on("connection", (socket) => {
         })),
         settings: roomState.settings
       });
-
-      console.log(`${username} joined room ${roomCode} as ${role}`);
     } catch (error) {
       console.error("Error joining room:", error);
       socket.emit("error", { message: "Failed to join room" });
@@ -597,7 +559,6 @@ io.on("connection", (socket) => {
       io.to(roomCode).emit("settings-updated", { 
         settings: roomState.settings 
       });
-      console.log(`Settings updated for room ${roomCode}:`, settings);
     }
   });
 
@@ -616,8 +577,6 @@ io.on("connection", (socket) => {
             ready: p.ready 
           }))
         });
-        
-        console.log(`Player ${player.username} in room ${roomCode} ready status: ${ready}`);
       }
     }
   });
@@ -651,16 +610,12 @@ io.on("connection", (socket) => {
         
         // Filter by difficulty
         const difficulty = roomState.settings.difficulty;
-        console.log(`Filtering problems: total=${allProblems.length}, difficulty=${difficulty}`);
         const filteredProblems = allProblems.filter(p => p.difficulty === difficulty);
-        console.log(`Filtered problems: ${filteredProblems.length} problems with difficulty ${difficulty}`);
         const problemsToChoose = filteredProblems.length > 0 ? filteredProblems : allProblems;
         
         // Select random problem
         const randomIndex = Math.floor(Math.random() * problemsToChoose.length);
         const selectedProblem = problemsToChoose[randomIndex];
-        
-        console.log(`Selected problem ${selectedProblem.problem_id} (difficulty: ${selectedProblem.difficulty}) for room ${roomCode}`);
         
         // Add problem_id to settings
         roomState.settings.problemId = selectedProblem.problem_id;
@@ -669,7 +624,6 @@ io.on("connection", (socket) => {
           settings: roomState.settings,
           problemId: selectedProblem.problem_id
         });
-        console.log(`Match started in room ${roomCode} with problem ${selectedProblem.problem_id}`);
       } catch (error) {
         console.error('Error selecting problem:', error);
         // Fallback: start match without problem selection
@@ -681,15 +635,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("submit-code", ({ roomCode, submissionId }) => {
-    console.log('[DEBUG] submit-code:', roomCode, submissionId, socket.id);
-    
     const roomState = rooms.get(roomCode);
     if (!roomState) {
-      console.log('[ERROR] Room not found:', roomCode);
       return;
     }
     if (roomState.match && roomState.match.status === "completed") {
-      console.log('[DEBUG] Submission ignored, match already completed');
       socket.emit("match-complete", {
         message: "Match already finished",
         match: roomState.match
@@ -699,8 +649,6 @@ io.on("connection", (socket) => {
     
     const player = roomState.players.find(p => p.socketId === socket.id);
     if (!player) {
-      console.log('[ERROR] Player not found:', socket.id);
-      console.log('[DEBUG] Players:', roomState.players);
       return;
     }
     
@@ -714,9 +662,6 @@ io.on("connection", (socket) => {
       timestamp: Date.now()
     };
     
-    console.log('Player submitted:', player.username, submissionId);
-    console.log('Total submissions:', Object.keys(roomState.submissions).length);
-    
     socket.to(roomCode).emit("opponent-submitted", {
       socketId: socket.id,
       username: player.username,
@@ -724,8 +669,6 @@ io.on("connection", (socket) => {
     });
     
     if (checkAllPlayersSubmitted(roomCode)) {
-      console.log('All players submitted. Waiting for results');
-      
       let attempts = 0;
       const maxAttempts = 15;
       let resultAnnounced = false;
@@ -733,12 +676,10 @@ io.on("connection", (socket) => {
       const pollInterval = setInterval(async () => {
         attempts++;
         
-        // Try to announce winner
         if (!resultAnnounced) {
           const announced = await compareAndAnnounceWinner(roomCode);
           if (announced) {
             resultAnnounced = true;
-            console.log('Result announced, clearing poll interval');
             clearInterval(pollInterval);
             return;
           }
@@ -755,8 +696,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    
     for (const [roomCode, roomState] of rooms.entries()) {
       const playerIndex = roomState.players.findIndex(p => p.socketId === socket.id);
       const spectatorIndex = roomState.spectators.findIndex(s => s.socketId === socket.id);
@@ -790,15 +729,12 @@ io.on("connection", (socket) => {
         // This allows players to reconnect after page navigation
         if (!roomState.settings || !roomState.settings.problemId) {
           rooms.delete(roomCode);
-          console.log(`Room ${roomCode} deleted (empty, no match started)`);
         } else {
-          console.log(`Room ${roomCode} is empty but match started - keeping room for reconnection`);
           // Set a timeout to delete room after 30 seconds if still empty
           setTimeout(() => {
             const currentRoom = rooms.get(roomCode);
             if (currentRoom && currentRoom.players.length === 0 && currentRoom.spectators.length === 0) {
               rooms.delete(roomCode);
-              console.log(`Room ${roomCode} deleted (timeout after being empty)`);
             }
           }, 30000);
         }

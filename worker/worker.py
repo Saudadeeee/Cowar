@@ -7,13 +7,13 @@ REDIS_HOST = os.getenv("REDIS_HOST","localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT","6379"))
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
-JUDGE_IMAGE = "oj_judge:latest"  # image name from judge build (will be built via compose or manually)
+JUDGE_IMAGE = "oj_judge:latest" 
 def _env_limit(name, default):
     val = os.getenv(name)
     if val is None:
         return default() if callable(default) else default
     val = val.strip()
-    # Remove inline comments (after #)
+
     if '#' in val:
         val = val.split('#')[0].strip()
     return val if val else (default() if callable(default) else default)
@@ -33,7 +33,7 @@ def _default_mem_limit():
                     parts = line.split()
                     if len(parts) >= 2:
                         total_kb = int(parts[1])
-                        half_kb = max(total_kb // 2, 256 * 1024)  # minimum 256MB
+                        half_kb = max(total_kb // 2, 256 * 1024) 
                         half_mb = max(half_kb // 1024, 256)
                         return f"{half_mb}m"
     except (OSError, ValueError):
@@ -46,12 +46,12 @@ DOCKER_RUN_TIMEOUT = int(os.getenv("DOCKER_RUN_TIMEOUT", "10"))
 COMPILE_TIMEOUT = int(os.getenv("COMPILE_TIMEOUT", str(DOCKER_RUN_TIMEOUT)))
 RUN_TIMEOUT = int(os.getenv("RUN_TIMEOUT", str(DOCKER_RUN_TIMEOUT)))
 DOCKER_RUN_EXTRA_ARGS = shlex.split(os.getenv("DOCKER_RUN_EXTRA_ARGS", ""))
-RUNS_PER_TEST = int(os.getenv("RUNS_PER_TEST", "3"))  # Số lần chạy mỗi test để lấy median
-PERFORMANCE_TOLERANCE = float(os.getenv("PERFORMANCE_TOLERANCE", "0.10"))  # 10% tolerance
+RUNS_PER_TEST = int(os.getenv("RUNS_PER_TEST", "3")) 
+PERFORMANCE_TOLERANCE = float(os.getenv("PERFORMANCE_TOLERANCE", "0.10"))  
 JOB_TMP_ROOT = os.getenv("JOB_TMP_ROOT", "/worker_tmp")
-HOST_JOB_TMP_ROOT = os.getenv("HOST_JOB_TMP_ROOT")  # may be absolute host path
+HOST_JOB_TMP_ROOT = os.getenv("HOST_JOB_TMP_ROOT") 
 PROBLEMS_ROOT = os.getenv("PROBLEMS_ROOT", "/problems")
-HOST_PROBLEMS_ROOT = os.getenv("HOST_PROBLEMS_ROOT")  # may be absolute host path
+HOST_PROBLEMS_ROOT = os.getenv("HOST_PROBLEMS_ROOT") 
 os.makedirs(JOB_TMP_ROOT, exist_ok=True)
 
 SOURCE_FILE_MAP = {
@@ -72,20 +72,17 @@ def _resolve_host_path(container_path: str, default_root: str, configured_host_r
     """
     container_path = os.path.abspath(container_path)
 
-    # 1) Use configured host root if available
     if configured_host_root and container_path.startswith(default_root):
         host_root = configured_host_root.rstrip("/")
         if os.path.exists(host_root):
             suffix = container_path[len(default_root):]
             return host_root + suffix
 
-    # 2) Reuse cached mapping if we already resolved this container path prefix
     for prefix, host_prefix in _MOUNT_CACHE.items():
         if container_path.startswith(prefix):
             suffix = container_path[len(prefix):]
             return host_prefix + suffix
 
-    # 3) Inspect this container's mounts to find the host source for default_root
     if _CONTAINER_ID:
         try:
             res = subprocess.run(
@@ -111,7 +108,6 @@ def _resolve_host_path(container_path: str, default_root: str, configured_host_r
         except Exception:
             pass
 
-    # 4) Fallback: assume identical path works on host
     return container_path
 
 def _parse_elapsed_seconds(val):
@@ -209,7 +205,6 @@ def compile_submission(sub_id):
     std = meta.get("std")
     problem_id = meta["problem_id"]
 
-    # Create temporary directory
     tmpdir = tempfile.mkdtemp(prefix=f"job_{sub_id}_", dir=JOB_TMP_ROOT)
     os.chmod(tmpdir, 0o777)
     cleanup_tmp = True
@@ -219,24 +214,21 @@ def compile_submission(sub_id):
         with open(src_file, "w", encoding="utf-8") as f:
             f.write(code)
 
-        # Run container to compile (not running tests at this step)
         host_tmpdir = _resolve_host_path(tmpdir, JOB_TMP_ROOT, HOST_JOB_TMP_ROOT)
         mounts = [(host_tmpdir, "/work", "rw")]
         std_arg = std or ""
         
-        # Escape shell arguments properly
         src_basename = os.path.basename(src_file)
         cmd = ["bash", "-lc", f"compile_run.sh --compile-only {shlex.quote(lang)} {shlex.quote(src_basename)} {shlex.quote(std_arg)}"]
         res = docker_run(cmd, mounts=mounts, timeout=COMPILE_TIMEOUT)
         compile_log = (res.stdout or "") + "\n" + (res.stderr or "")
         r.set(f"compile_log:{sub_id}", compile_log, ex=3600)
 
-        if res.returncode not in (0,):  # compile_run.sh returns 0 if compile OK
+        if res.returncode not in (0,):  
             r.hset(f"sub:{sub_id}", "status", "compile_error")
             return
 
-        # After successful compilation: push to run queue
-        cleanup_tmp = False  # keep directory for run step, will clean up in run_submission
+        cleanup_tmp = False  
         r.hset(f"sub:{sub_id}", "status", "compiled")
         r.lpush("queue:run", json.dumps({"submission_id": sub_id, "tmpdir": tmpdir, "problem_id": problem_id, "lang": lang, "std": std}))
     except subprocess.TimeoutExpired:
@@ -261,23 +253,19 @@ def run_submission(job):
         return
 
     try:
-        # Get test_mode from submission metadata
         meta = r.hgetall(f"sub:{sub_id}")
         test_mode = meta.get("test_mode", "all")
         
-        # If sample_only mode, create filtered test directory
         if test_mode == "sample_only":
-            # Read problem metadata to get test visibility info
+         
             meta_file = os.path.join(tests_dir, "meta.json")
             if os.path.exists(meta_file):
                 with open(meta_file, "r", encoding="utf-8") as f:
                     problem_meta = json.load(f)
                 
-                # Create temporary test directory with only public tests
                 filtered_tests_dir = os.path.join(tmpdir, "filtered_tests")
                 os.makedirs(filtered_tests_dir, exist_ok=True)
                 
-                # Copy only public/sample tests
                 test_num = 1
                 for test in problem_meta.get("tests", []):
                     if test.get("visibility") == "public":
@@ -291,7 +279,6 @@ def run_submission(job):
                                 shutil.copy(src_output, os.path.join(filtered_tests_dir, f"output{test_num}.txt"))
                                 test_num += 1
                 
-                # Use filtered directory instead
                 tests_dir = filtered_tests_dir
         
         host_tmpdir = _resolve_host_path(tmpdir, JOB_TMP_ROOT, HOST_JOB_TMP_ROOT)
@@ -302,7 +289,6 @@ def run_submission(job):
             (host_tmpdir, "/work", "rw"),
             (host_tests_dir, "/tests", "ro")
         ]
-        # Call container to run binary on test set (compile_run.sh already generated main)
         source_for_run = SOURCE_FILE_MAP.get(lang, "main.cpp")
         std_arg = std or ""
         cmd = ["bash", "-lc", f"compile_run.sh --run-only {shlex.quote(lang)} {shlex.quote(source_for_run)} {shlex.quote(std_arg)}"]
@@ -317,7 +303,6 @@ def run_submission(job):
             r.set(f"run_result:{sub_id}", json.dumps(error_payload), ex=3600)
             r.hset(f"sub:{sub_id}", "status", "error")
             return
-        # Parse result: based on verdict_*.txt + metrics_*.txt files in /work
         verdicts = []
         metrics = []
         for i in range(1, 1000):
@@ -398,21 +383,18 @@ def run_submission(job):
             "total_tests": len(verdicts),
             "passed": passed_count,
             "failed": len(verdicts) - passed_count,
-            "accuracy": accuracy,  # NEW: Accuracy percentage (0-100)
+            "accuracy": accuracy,  
             
-            # Time metrics
             "max_elapsed_seconds": max_elapsed,
             "avg_elapsed_seconds": avg_elapsed,
-            "median_elapsed_seconds": median_elapsed,  # NEW: More stable than average
+            "median_elapsed_seconds": median_elapsed,
             
-            # Memory metrics
             "max_memory_kb": max_mem,
-            "avg_memory_kb": avg_mem,  # NEW
-            "median_memory_kb": median_mem,  # NEW
+            "avg_memory_kb": avg_mem, 
+            "median_memory_kb": median_mem, 
             
             "overall": "passed" if ok else "failed",
             
-            # Metadata for ranking
             "ranking_priority": {
                 "1_accuracy": accuracy,
                 "2_time": median_elapsed or avg_elapsed or max_elapsed,
@@ -435,20 +417,15 @@ def run_submission(job):
         r.hset(f"sub:{sub_id}", "status", "error")
         r.set(f"run_result:{sub_id}", json.dumps({"error": str(e)}), ex=3600)
     finally:
-        # Clean up temporary working directory
         try:
             shutil.rmtree(tmpdir, ignore_errors=True)
         except:
             pass
 
 def main():
-    # simple infinite loop
     print("Worker started.", flush=True)
-    # Build judge image beforehand if not available (optional):
-   # subprocess.run(["docker","build","-t","oj_judge:latest","./judge"], check=True)
 
     while True:
-        # compile queue
         msg = r.brpop("queue:compile", timeout=1)
         if msg:
             _, payload = msg
@@ -456,7 +433,6 @@ def main():
             print(f"[COMPILE] Processing submission {sub_id}", flush=True)
             compile_submission(sub_id)
 
-        # run queue
         msg2 = r.brpop("queue:run", timeout=1)
         if msg2:
             _, payload2 = msg2
@@ -465,14 +441,6 @@ def main():
             run_submission(job)
 
 def compare_submissions(sub_id_a, sub_id_b):
-    """
-    Compare two submissions using ranking priority:
-    1. Accuracy (higher is better)
-    2. Time (lower is better, with tolerance)
-    3. Memory (lower is better, with tolerance)
-    
-    Returns: dict with comparison results
-    """
     result_a_raw = r.get(f"run_result:{sub_id_a}")
     result_b_raw = r.get(f"run_result:{sub_id_b}")
     
@@ -491,7 +459,6 @@ def compare_submissions(sub_id_a, sub_id_b):
     accuracy_a = perf_a.get("accuracy", 0)
     accuracy_b = perf_b.get("accuracy", 0)
     
-    # Priority 1: Accuracy
     if accuracy_a != accuracy_b:
         winner = "A" if accuracy_a > accuracy_b else "B"
         return {
@@ -504,13 +471,11 @@ def compare_submissions(sub_id_a, sub_id_b):
             }
         }
     
-    # If accuracy is equal, compare time
     time_a = perf_a.get("median_elapsed_seconds") or perf_a.get("avg_elapsed_seconds")
     time_b = perf_b.get("median_elapsed_seconds") or perf_b.get("avg_elapsed_seconds")
     
     time_comparison = _compare_performance_with_tolerance(time_a, time_b)
     
-    # Priority 2: Time (with tolerance)
     if time_comparison != 'TIE':
         winner = "A" if time_comparison == "A_BETTER" else "B"
         return {
@@ -524,13 +489,11 @@ def compare_submissions(sub_id_a, sub_id_b):
             }
         }
     
-    # If time is within tolerance, compare memory
     mem_a = perf_a.get("median_memory_kb") or perf_a.get("avg_memory_kb")
     mem_b = perf_b.get("median_memory_kb") or perf_b.get("avg_memory_kb")
     
     mem_comparison = _compare_performance_with_tolerance(mem_a, mem_b)
     
-    # Priority 3: Memory (with tolerance)
     if mem_comparison != 'TIE':
         winner = "A" if mem_comparison == "A_BETTER" else "B"
         return {
@@ -544,7 +507,6 @@ def compare_submissions(sub_id_a, sub_id_b):
             }
         }
     
-    # Complete tie
     return {
         "winner": "TIE",
         "reason": "all_metrics_equal_within_tolerance",
